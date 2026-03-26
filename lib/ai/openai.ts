@@ -1,11 +1,7 @@
 import OpenAI from "openai";
 
 import { env } from "@/lib/env";
-import {
-  clusterItemSchema,
-  extractedQuestionSchema,
-  type ExtractedQuestion,
-} from "@/lib/validation";
+import { clusterItemSchema } from "@/lib/validation";
 
 function extractJsonPayload(rawText: string) {
   const trimmed = rawText.trim();
@@ -50,9 +46,14 @@ function normalizeExtractedQuestions(questions: unknown) {
           };
         })
       : [];
+    const inferredAnswer =
+      typeof record.answer === "string" && record.answer.trim().length
+        ? record.answer
+        : normalizedChoices.find((choice) => choice.is_correct)?.text ?? "";
 
     return {
       ...record,
+      answer: inferredAnswer,
       choices: normalizedChoices,
       explanation:
         typeof record.explanation === "string" && record.explanation.trim().length
@@ -144,9 +145,7 @@ export async function extractQuestionsWithOpenAI(input: {
     });
 
     const parsed = JSON.parse(extractJsonPayload(rawText)) as { questions?: unknown };
-    return extractedQuestionSchema
-      .array()
-      .parse(normalizeExtractedQuestions(parsed.questions)) as ExtractedQuestion[];
+    return normalizeExtractedQuestions(parsed.questions);
   }
 
   const content: OpenAI.Chat.ChatCompletionContentPart[] = [
@@ -178,9 +177,7 @@ export async function extractQuestionsWithOpenAI(input: {
   });
 
   const parsed = JSON.parse(extractJsonPayload(rawText)) as { questions?: unknown };
-  return extractedQuestionSchema
-    .array()
-    .parse(normalizeExtractedQuestions(parsed.questions)) as ExtractedQuestion[];
+  return normalizeExtractedQuestions(parsed.questions);
 }
 
 export async function clusterWeaknessesWithOpenAI(

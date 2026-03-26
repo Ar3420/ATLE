@@ -28,15 +28,33 @@ export async function runExtractionWorkflow(input: {
       label: input.label,
     });
 
-    const safeQuestions = extractedQuestions.map((question) =>
-      extractedQuestionSchema.parse(question),
-    );
+    const safeQuestions = [] as ReturnType<typeof extractedQuestionSchema.parse>[];
+    const validationErrors: string[] = [];
+
+    extractedQuestions.forEach((question, index) => {
+      const parsedQuestion = extractedQuestionSchema.safeParse(question);
+
+      if (parsedQuestion.success) {
+        safeQuestions.push(parsedQuestion.data);
+        return;
+      }
+
+      const firstIssue = parsedQuestion.error.issues[0];
+      validationErrors.push(
+        `Question ${index + 1}: ${firstIssue?.path.join(".") || "unknown field"} ${firstIssue?.message ?? "is invalid"}.`,
+      );
+    });
 
     await supabase
       .from("pending_questions")
       .delete()
       .eq("user_id", input.userId)
       .eq("source_file_id", input.sourceFileId);
+
+    if (!safeQuestions.length) {
+      const detail = validationErrors[0] ?? "The model returned no valid questions.";
+      throw new Error(`Extraction returned no reviewable questions. ${detail}`);
+    }
 
     if (safeQuestions.length) {
       const { error: insertError } = await supabase.from("pending_questions").insert(
@@ -70,7 +88,10 @@ export async function runExtractionWorkflow(input: {
 
     return {
       questions: safeQuestions,
-      error: null as string | null,
+      error:
+        validationErrors.length > 0
+          ? `${validationErrors.length} extracted question(s) were skipped. ${validationErrors[0]}`
+          : null,
     };
   } catch (error) {
     await supabase

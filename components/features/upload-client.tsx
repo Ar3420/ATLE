@@ -47,7 +47,17 @@ export function UploadClient({
       return;
     }
 
-    toast.success(data.extraction?.error ? "Upload saved, extraction needs review." : "Upload complete and extraction ready.");
+    if (data.extraction?.error && !data.extraction?.questions?.length) {
+      toast.error(data.extraction.error);
+      return;
+    }
+
+    if (data.extraction?.error) {
+      toast.error(data.extraction.error);
+    } else {
+      toast.success("Upload complete and extraction ready.");
+    }
+
     window.location.href = data.review_url;
   }
 

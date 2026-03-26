@@ -121,6 +121,14 @@ export function ReviewClient({
           <CardDescription>Review, edit, delete, or add questions before anything reaches the bank.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {!questions.length ? (
+            <div className="rounded-3xl border border-dashed border-[#dbcaa3] bg-[#fffaf1] px-6 py-10 text-center">
+              <p className="text-lg font-medium text-[#55627e]">No pending questions found.</p>
+              <p className="mt-2 text-sm text-[#9f947c]">
+                Extraction may have failed or returned no reviewable questions for this file.
+              </p>
+            </div>
+          ) : null}
           {questions.map((question, index) => (
             <div key={`${index}-${question.question_text.slice(0, 12)}`} className="rounded-3xl border border-[#e4d7ba] bg-[#fffaf1] p-5">
               <div className="mb-4 flex items-center justify-between">
