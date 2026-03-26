@@ -7,6 +7,61 @@ import {
   type ExtractedQuestion,
 } from "@/lib/validation";
 
+function extractJsonPayload(rawText: string) {
+  const trimmed = rawText.trim();
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) {
+    return fencedMatch[1].trim();
+  }
+
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1);
+  }
+
+  return trimmed;
+}
+
+function normalizeExtractedQuestions(questions: unknown) {
+  if (!Array.isArray(questions)) {
+    return [];
+  }
+
+  return questions.map((question) => {
+    if (!question || typeof question !== "object") {
+      return question;
+    }
+
+    const record = question as Record<string, unknown>;
+    const normalizedChoices = Array.isArray(record.choices)
+      ? record.choices.map((choice) => {
+          if (choice && typeof choice === "object") {
+            const choiceRecord = choice as Record<string, unknown>;
+            return {
+              text: String(choiceRecord.text ?? ""),
+              is_correct: Boolean(choiceRecord.is_correct),
+            };
+          }
+
+          return {
+            text: String(choice ?? ""),
+            is_correct: String(choice ?? "").trim() === String(record.answer ?? "").trim(),
+          };
+        })
+      : [];
+
+    return {
+      ...record,
+      choices: normalizedChoices,
+      explanation:
+        typeof record.explanation === "string" && record.explanation.trim().length
+          ? record.explanation
+          : null,
+    };
+  });
+}
+
 function getClient() {
   if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured.");
@@ -88,8 +143,10 @@ export async function extractQuestionsWithOpenAI(input: {
       instructions: `${instructions} Label: ${input.label}.`,
     });
 
-    const parsed = JSON.parse(rawText) as { questions?: unknown };
-    return extractedQuestionSchema.array().parse(parsed.questions ?? []) as ExtractedQuestion[];
+    const parsed = JSON.parse(extractJsonPayload(rawText)) as { questions?: unknown };
+    return extractedQuestionSchema
+      .array()
+      .parse(normalizeExtractedQuestions(parsed.questions)) as ExtractedQuestion[];
   }
 
   const content: OpenAI.Chat.ChatCompletionContentPart[] = [
@@ -120,8 +177,10 @@ export async function extractQuestionsWithOpenAI(input: {
     messages: [{ role: "user", content }],
   });
 
-  const parsed = JSON.parse(rawText) as { questions?: unknown };
-  return extractedQuestionSchema.array().parse(parsed.questions ?? []) as ExtractedQuestion[];
+  const parsed = JSON.parse(extractJsonPayload(rawText)) as { questions?: unknown };
+  return extractedQuestionSchema
+    .array()
+    .parse(normalizeExtractedQuestions(parsed.questions)) as ExtractedQuestion[];
 }
 
 export async function clusterWeaknessesWithOpenAI(
@@ -153,6 +212,6 @@ export async function clusterWeaknessesWithOpenAI(
     ],
   });
 
-  const parsed = JSON.parse(rawText) as { clusters?: unknown };
+  const parsed = JSON.parse(extractJsonPayload(rawText)) as { clusters?: unknown };
   return clusterItemSchema.array().parse(parsed.clusters ?? []);
 }
