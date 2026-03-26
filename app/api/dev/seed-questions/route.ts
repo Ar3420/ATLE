@@ -8,8 +8,10 @@ export async function POST(request: Request) {
   const user = await requireUser();
   const supabase = createServerSupabaseClient();
   const body = await request.json().catch(() => ({}));
+  const forceMockSubject = body.force_mock_subject !== false;
 
-  let subjectId = typeof body.subject_id === "string" ? body.subject_id : "";
+  let subjectId =
+    !forceMockSubject && typeof body.subject_id === "string" ? body.subject_id : "";
 
   if (!subjectId) {
     const { data: existingSubject } = await supabase
@@ -99,8 +101,16 @@ export async function POST(request: Request) {
     insertedCount += 1;
   }
 
+  const { data: subject } = await supabase
+    .from("subjects")
+    .select("*")
+    .eq("id", subjectId)
+    .eq("user_id", user.id)
+    .single();
+
   return NextResponse.json({
     inserted: insertedCount,
     subject_id: subjectId,
+    subject_name: subject?.name ?? MOCK_SUBJECT.name,
   });
 }

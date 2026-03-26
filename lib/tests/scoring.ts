@@ -74,6 +74,7 @@ export function selectQuestions(
     input.difficulty_distribution,
     totalCount,
   );
+  const maxTopicCount = Math.max(1, Math.ceil(totalCount * 0.4));
 
   const subjectCounts = new Map<string, number>();
   const topicCounts = new Map<string, number>();
@@ -106,9 +107,8 @@ export function selectQuestions(
       }
 
       const currentTopicCount = topicCounts.get(question.topic) ?? 0;
-      const projectedTopicShare = (currentTopicCount + 1) / (selected.length + 1);
 
-      if (projectedTopicShare > 0.4) {
+      if (currentTopicCount >= maxTopicCount) {
         continue;
       }
 
@@ -135,8 +135,7 @@ export function selectQuestions(
         continue;
       }
       const currentTopicCount = topicCounts.get(question.topic) ?? 0;
-      const projectedTopicShare = (currentTopicCount + 1) / (selected.length + 1);
-      if (projectedTopicShare > 0.4) {
+      if (currentTopicCount >= maxTopicCount) {
         continue;
       }
       selected.push(question);

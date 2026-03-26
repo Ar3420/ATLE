@@ -43,6 +43,7 @@ export function QuestionBankClient({
   subjects: TableRow<"subjects">[];
   initialQuestions: QuestionRow[];
 }) {
+  const subjectMap = new Map(subjects.map((subject) => [subject.id, subject.name]));
   const [questions, setQuestions] = useState(
     initialQuestions.map((question) => ({
       ...question,
@@ -137,7 +138,7 @@ export function QuestionBankClient({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        subject_id: draft.subject_id || undefined,
+        force_mock_subject: true,
       }),
     });
     const data = await response.json();
@@ -150,7 +151,7 @@ export function QuestionBankClient({
 
     toast.success(
       data.inserted
-        ? `Inserted ${data.inserted} mock questions.`
+        ? `Inserted ${data.inserted} mock questions into ${data.subject_name}.`
         : data.message ?? "Mock questions already exist.",
     );
     window.location.reload();
@@ -217,6 +218,15 @@ export function QuestionBankClient({
             }
             className="min-w-[280px]"
           />
+        ),
+      },
+      {
+        accessorKey: "subject_id",
+        header: "Subject",
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap rounded-full border border-[#eadab4] bg-[#fff6e3] px-3 py-1 text-xs font-medium text-[#8c6f36]">
+            {subjectMap.get(row.original.subject_id) ?? "Unknown Subject"}
+          </span>
         ),
       },
       {

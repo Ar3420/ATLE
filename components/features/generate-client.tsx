@@ -17,7 +17,7 @@ export function GenerateClient({
   topics,
   subtopics,
 }: {
-  subjects: TableRow<"subjects">[];
+  subjects: (TableRow<"subjects"> & { question_count: number })[];
   topics: string[];
   subtopics: string[];
 }) {
@@ -159,7 +159,9 @@ export function GenerateClient({
                           }))
                         }
                       />
-                      <span className="text-sm text-[#5f6880]">{subject.name}</span>
+                      <span className="text-sm text-[#5f6880]">
+                        {subject.name} ({subject.question_count})
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -201,7 +203,10 @@ export function GenerateClient({
                   <Select
                     value={targeted.subject_id}
                     onChange={(event) => setTargeted((current) => ({ ...current, subject_id: event.target.value }))}
-                    options={subjects.map((subject) => ({ label: subject.name, value: subject.id }))}
+                    options={subjects.map((subject) => ({
+                      label: `${subject.name} (${subject.question_count})`,
+                      value: subject.id,
+                    }))}
                   />
                 </div>
                 <div>
