@@ -1,5 +1,3 @@
-import pdfParse from "pdf-parse";
-
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function downloadSourceFile(path: string) {
@@ -17,9 +15,10 @@ export async function parseSourceFile(blob: Blob, fileType: "pdf" | "image" | "t
   const buffer = Buffer.from(await blob.arrayBuffer());
 
   if (fileType === "pdf") {
-    const parsed = await pdfParse(buffer);
     return {
-      documentText: parsed.text,
+      pdfBase64: buffer.toString("base64"),
+      pdfMediaType: blob.type || "application/pdf",
+      pdfFilename: "source-document.pdf",
     };
   }
 

@@ -32,17 +32,70 @@ async function createJsonResponse(input: OpenAI.Chat.ChatCompletionCreateParams)
   return content;
 }
 
+async function createPdfJsonResponse(input: {
+  pdfBase64: string;
+  pdfFilename: string;
+  instructions: string;
+}) {
+  const client = getClient();
+  const response = await client.responses.create({
+    model: "gpt-4o",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: input.instructions,
+          },
+          {
+            type: "input_file",
+            filename: input.pdfFilename,
+            file_data: `data:application/pdf;base64,${input.pdfBase64}`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const outputText =
+    "output_text" in response && typeof response.output_text === "string"
+      ? response.output_text
+      : "";
+
+  if (!outputText) {
+    throw new Error("OpenAI returned an empty PDF extraction response.");
+  }
+
+  return outputText;
+}
+
 export async function extractQuestionsWithOpenAI(input: {
   documentText?: string;
   imageBase64?: string;
   imageMediaType?: string;
+  pdfBase64?: string;
+  pdfFilename?: string;
   label: string;
 }) {
+  const instructions =
+    'You are extracting exam questions from an academic document. Extract every question. For each return: question_text, type: multiple_choice or long_response, choices (array of { text, is_correct }) if MC, answer (text), topic (infer from content), subtopic (infer from content), difficulty (1-5, estimate based on complexity), explanation (optional, brief), uncertain (boolean). Return strict JSON in the shape {"questions":[...]}. No markdown or extra text.';
+
+  if (input.pdfBase64) {
+    const rawText = await createPdfJsonResponse({
+      pdfBase64: input.pdfBase64,
+      pdfFilename: input.pdfFilename ?? "source-document.pdf",
+      instructions: `${instructions} Label: ${input.label}.`,
+    });
+
+    const parsed = JSON.parse(rawText) as { questions?: unknown };
+    return extractedQuestionSchema.array().parse(parsed.questions ?? []) as ExtractedQuestion[];
+  }
+
   const content: OpenAI.Chat.ChatCompletionContentPart[] = [
     {
       type: "text",
-      text:
-        'You are extracting exam questions from an academic document. Extract every question. For each return: question_text, type: multiple_choice or long_response, choices (array of { text, is_correct }) if MC, answer (text), topic (infer from content), subtopic (infer from content), difficulty (1-5, estimate based on complexity), explanation (optional, brief), uncertain (boolean). Return strict JSON in the shape {"questions":[...]}. No markdown or extra text.',
+      text: instructions,
     },
   ];
 
