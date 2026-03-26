@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  border-color: #e4d7ba;
+}
+
+html,
+body {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top, rgba(228, 189, 98, 0.22), transparent 26%),
+    linear-gradient(180deg, #fffdf7 0%, #fbf5e8 52%, #f5eddc 100%);
+  color: #4d556f;
+}
+
+body {
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(231, 219, 193, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 179, 108, 0.85);
+  border-radius: 9999px;
+}
+
+.bg-grid {
+  background-image: radial-gradient(
+    circle at center,
+    rgba(212, 179, 108, 0.22) 1px,
+    transparent 1px
+  );
+  background-size: 26px 26px;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(212, 179, 108, 0.28);
+}
