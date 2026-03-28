@@ -112,6 +112,56 @@ export async function getPendingQuestions(userId: string, sourceFileId: string) 
   };
 }
 
+export async function getAllPendingQuestionGroups(userId: string) {
+  const supabase = createServerSupabaseClient();
+  const [{ data: sourceFiles, error: sourceFilesError }, { data: pending, error: pendingError }] =
+    await Promise.all([
+      supabase
+        .from("source_files")
+        .select("*")
+        .eq("user_id", userId)
+        .in("processing_status", ["extracting", "review_ready", "failed"])
+        .order("uploaded_at", { ascending: false }),
+      supabase
+        .from("pending_questions")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true }),
+    ]);
+
+  if (sourceFilesError) throw sourceFilesError;
+  if (pendingError) throw pendingError;
+
+  const pendingBySourceFileId = new Map<
+    string,
+    Array<TableRow<"pending_questions"> & { choices?: unknown }>
+  >();
+
+  for (const item of pending ?? []) {
+    const currentItems = pendingBySourceFileId.get(item.source_file_id) ?? [];
+    currentItems.push({
+      ...item,
+      choices: Array.isArray(item.choices_json) ? item.choices_json : [],
+    });
+    pendingBySourceFileId.set(item.source_file_id, currentItems);
+  }
+
+  const groups = (sourceFiles ?? [])
+    .map((sourceFile) => ({
+      sourceFile,
+      pendingQuestions: pendingBySourceFileId.get(sourceFile.id) ?? [],
+    }))
+    .filter((group) => group.pendingQuestions.length > 0);
+
+  return {
+    groups,
+    totalPendingQuestions: groups.reduce(
+      (sum, group) => sum + group.pendingQuestions.length,
+      0,
+    ),
+  };
+}
+
 export async function getTests(userId: string) {
   const supabase = createServerSupabaseClient();
   const [{ data: tests, error: testsError }, { data: testQuestions }, { data: attempts }] =

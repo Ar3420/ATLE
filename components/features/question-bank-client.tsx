@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import { toast } from "sonner";
 
 import { DataTable } from "@/components/tables/data-table";
@@ -16,6 +16,7 @@ import type { TableRow } from "@/lib/types/database";
 
 type QuestionRow = TableRow<"questions"> & {
   choices: TableRow<"choices">[];
+  choices_text: string;
 };
 
 function choicesToText(choices: TableRow<"choices">[]) {
@@ -41,10 +42,10 @@ export function QuestionBankClient({
   initialQuestions,
 }: {
   subjects: TableRow<"subjects">[];
-  initialQuestions: QuestionRow[];
+  initialQuestions: (TableRow<"questions"> & { choices: TableRow<"choices">[] })[];
 }) {
   const subjectMap = new Map(subjects.map((subject) => [subject.id, subject.name]));
-  const [questions, setQuestions] = useState(
+  const [questions, setQuestions] = useState<QuestionRow[]>(
     initialQuestions.map((question) => ({
       ...question,
       choices_text: choicesToText(question.choices),
@@ -69,7 +70,16 @@ export function QuestionBankClient({
     explanation: "",
     choices_text: "",
   });
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
+
+  function updateQuestionField(questionId: string, key: keyof QuestionRow, value: string | number | TableRow<"choices">[]) {
+    setQuestions((current) =>
+      current.map((question) =>
+        question.id === questionId ? { ...question, [key]: value } : question,
+      ),
+    );
+  }
 
   const filteredQuestions = useMemo(() => {
     return questions.filter((question) => {
@@ -78,10 +88,7 @@ export function QuestionBankClient({
       if (filters.subtopic && !question.subtopic.toLowerCase().includes(filters.subtopic.toLowerCase())) return false;
       if (filters.type && question.type !== filters.type) return false;
       if (filters.difficulty && question.difficulty !== Number(filters.difficulty)) return false;
-      if (
-        filters.search &&
-        !question.question_text.toLowerCase().includes(filters.search.toLowerCase())
-      ) {
+      if (filters.search && !question.question_text.toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
       return true;
@@ -200,228 +207,219 @@ export function QuestionBankClient({
     toast.success("Question removed.");
   }
 
-  const columns: ColumnDef<(typeof questions)[number]>[] = [
-      {
-        accessorKey: "question_text",
-        header: "Question",
-        cell: ({ row }) => (
+  const columns: ColumnDef<QuestionRow>[] = [
+    {
+      accessorKey: "question_text",
+      header: "Question",
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <p className="font-medium text-[#434c60]">{row.original.question_text}</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-[#b08426]">
+            Click to expand
+          </p>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "subject_id",
+      header: "Subject",
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap rounded-full border border-[#e5dcc8] bg-white px-3 py-1 text-xs font-medium text-[#8c6f36]">
+          {subjectMap.get(row.original.subject_id) ?? "Unknown Subject"}
+        </span>
+      ),
+    },
+  ];
+
+  function renderExpandedRow(row: Row<QuestionRow>) {
+    const question = row.original;
+
+    return (
+      <div className="grid gap-4 md:grid-cols-2" onClick={(event) => event.stopPropagation()}>
+        <div className="md:col-span-2">
+          <Label>Question Text</Label>
           <Textarea
-            value={row.original.question_text}
-            onChange={(event) =>
-              setQuestions((current) =>
-                current.map((question) =>
-                  question.id === row.original.id
-                    ? { ...question, question_text: event.target.value }
-                    : question,
-                ),
-              )
-            }
-            className="min-w-[280px]"
+            value={question.question_text}
+            onChange={(event) => updateQuestionField(question.id, "question_text", event.target.value)}
           />
-        ),
-      },
-      {
-        accessorKey: "subject_id",
-        header: "Subject",
-        cell: ({ row }) => (
-          <span className="whitespace-nowrap rounded-full border border-[#eadab4] bg-[#fff6e3] px-3 py-1 text-xs font-medium text-[#8c6f36]">
-            {subjectMap.get(row.original.subject_id) ?? "Unknown Subject"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "topic",
-        header: "Topic",
-        cell: ({ row }) => (
+        </div>
+        <div>
+          <Label>Topic</Label>
           <Input
-            value={row.original.topic}
-            onChange={(event) =>
-              setQuestions((current) =>
-                current.map((question) =>
-                  question.id === row.original.id ? { ...question, topic: event.target.value } : question,
-                ),
-              )
-            }
+            value={question.topic}
+            onChange={(event) => updateQuestionField(question.id, "topic", event.target.value)}
           />
-        ),
-      },
-      {
-        accessorKey: "subtopic",
-        header: "Subtopic",
-        cell: ({ row }) => (
+        </div>
+        <div>
+          <Label>Subtopic</Label>
           <Input
-            value={row.original.subtopic}
-            onChange={(event) =>
-              setQuestions((current) =>
-                current.map((question) =>
-                  question.id === row.original.id ? { ...question, subtopic: event.target.value } : question,
-                ),
-              )
-            }
+            value={question.subtopic}
+            onChange={(event) => updateQuestionField(question.id, "subtopic", event.target.value)}
           />
-        ),
-      },
-      {
-        accessorKey: "difficulty",
-        header: "Difficulty",
-        cell: ({ row }) => (
+        </div>
+        <div>
+          <Label>Difficulty</Label>
           <Input
             type="number"
             min={1}
             max={5}
-            value={row.original.difficulty}
-            onChange={(event) =>
-              setQuestions((current) =>
-                current.map((question) =>
-                  question.id === row.original.id
-                    ? { ...question, difficulty: Number(event.target.value) }
-                    : question,
-                ),
-              )
-            }
-            className="w-20"
+            value={question.difficulty}
+            onChange={(event) => updateQuestionField(question.id, "difficulty", Number(event.target.value))}
           />
-        ),
-      },
-      {
-        accessorKey: "answer",
-        header: "Answer / Choices",
-        cell: ({ row }) => (
-          <div className="space-y-2">
+        </div>
+        <div>
+          <Label>Type</Label>
+          <Select
+            value={question.type}
+            onChange={(event) => updateQuestionField(question.id, "type", event.target.value)}
+            options={QUESTION_TYPES.map((type) => ({ label: type, value: type }))}
+          />
+        </div>
+        <div className="md:col-span-2">
+          <Label>Answer</Label>
+          <Textarea
+            value={question.answer}
+            onChange={(event) => updateQuestionField(question.id, "answer", event.target.value)}
+          />
+        </div>
+        {question.type === "multiple_choice" ? (
+          <div className="md:col-span-2">
+            <Label>Answer Choices</Label>
             <Textarea
-              value={row.original.answer}
-              onChange={(event) =>
-                setQuestions((current) =>
-                  current.map((question) =>
-                    question.id === row.original.id ? { ...question, answer: event.target.value } : question,
-                  ),
-                )
-              }
+              value={question.choices_text}
+              onChange={(event) => updateQuestionField(question.id, "choices_text", event.target.value)}
+              placeholder={"Choice A|false\nChoice B|true"}
             />
-            {row.original.type === "multiple_choice" ? (
-              <Textarea
-                value={row.original.choices_text}
-                onChange={(event) =>
-                  setQuestions((current) =>
-                    current.map((question) =>
-                      question.id === row.original.id
-                        ? { ...question, choices_text: event.target.value }
-                        : question,
-                    ),
-                  )
-                }
-                placeholder="Choice text|true"
-              />
-            ) : null}
           </div>
-        ),
-      },
-      {
-        accessorKey: "actions",
-        header: "Actions",
-        cell: ({ row }) => (
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => saveQuestion(row.original.id)}>
-              Save
-            </Button>
-            <Button variant="danger" size="sm" onClick={() => deleteQuestion(row.original.id)}>
-              Delete
-            </Button>
-          </div>
-        ),
-      },
-    ];
+        ) : null}
+        <div className="md:col-span-2">
+          <Label>Explanation</Label>
+          <Textarea
+            value={question.explanation ?? ""}
+            onChange={(event) => updateQuestionField(question.id, "explanation", event.target.value)}
+          />
+        </div>
+        <div className="md:col-span-2 flex flex-wrap gap-3">
+          <Button type="button" onClick={() => saveQuestion(question.id)}>
+            Save
+          </Button>
+          <Button type="button" variant="danger" onClick={() => deleteQuestion(question.id)}>
+            Delete
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-6">
       <Card>
-        <CardHeader>
-          <CardTitle>Manual Entry</CardTitle>
-          <CardDescription>The bank remains fully functional without any AI-generated questions.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <CardHeader className="md:flex-row md:items-center md:justify-between">
           <div>
-            <Label>Subject</Label>
-            <Select
-              value={draft.subject_id}
-              onChange={(event) => setDraft((current) => ({ ...current, subject_id: event.target.value }))}
-              options={subjects.map((subject) => ({ label: subject.name, value: subject.id }))}
-            />
+            <CardTitle>Manual Entry</CardTitle>
+            <CardDescription>
+              The bank remains fully functional without any AI-generated questions.
+            </CardDescription>
           </div>
-          <div>
-            <Label>Type</Label>
-            <Select
-              value={draft.type}
-              onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value }))}
-              options={QUESTION_TYPES.map((type) => ({ label: type, value: type }))}
-            />
-          </div>
-          <div>
-            <Label>Topic</Label>
-            <Input
-              value={draft.topic}
-              onChange={(event) => setDraft((current) => ({ ...current, topic: event.target.value }))}
-            />
-          </div>
-          <div>
-            <Label>Subtopic</Label>
-            <Input
-              value={draft.subtopic}
-              onChange={(event) => setDraft((current) => ({ ...current, subtopic: event.target.value }))}
-            />
-          </div>
-          <div className="xl:col-span-2">
-            <Label>Question Text</Label>
-            <Textarea
-              value={draft.question_text}
-              onChange={(event) => setDraft((current) => ({ ...current, question_text: event.target.value }))}
-            />
-          </div>
-          <div>
-            <Label>Answer</Label>
-            <Textarea
-              value={draft.answer}
-              onChange={(event) => setDraft((current) => ({ ...current, answer: event.target.value }))}
-            />
-          </div>
-          <div>
-            <Label>Explanation</Label>
-            <Textarea
-              value={draft.explanation}
-              onChange={(event) => setDraft((current) => ({ ...current, explanation: event.target.value }))}
-            />
-          </div>
-          <div>
-            <Label>Difficulty</Label>
-            <Input
-              type="number"
-              min={1}
-              max={5}
-              value={draft.difficulty}
-              onChange={(event) => setDraft((current) => ({ ...current, difficulty: Number(event.target.value) }))}
-            />
-          </div>
-          <div className="xl:col-span-3">
-            <Label>Choices (MC only)</Label>
-            <Textarea
-              value={draft.choices_text}
-              onChange={(event) => setDraft((current) => ({ ...current, choices_text: event.target.value }))}
-              placeholder={"Choice A|false\nChoice B|true"}
-            />
-          </div>
-          <div className="xl:col-span-4 flex flex-wrap gap-3">
-            <Button onClick={createQuestion}>Add Question</Button>
-            <Button variant="secondary" onClick={seedMockQuestions} disabled={isSeeding}>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => setIsManualEntryOpen((current) => !current)}
+            >
+              {isManualEntryOpen ? "Hide Manual Entry" : "Manual Entry"}
+            </Button>
+            <Button variant="secondary" type="button" onClick={seedMockQuestions} disabled={isSeeding}>
               {isSeeding ? "Seeding..." : "Seed Mock Questions"}
             </Button>
           </div>
-        </CardContent>
+        </CardHeader>
+        {isManualEntryOpen ? (
+          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <Label>Subject</Label>
+              <Select
+                value={draft.subject_id}
+                onChange={(event) => setDraft((current) => ({ ...current, subject_id: event.target.value }))}
+                options={subjects.map((subject) => ({ label: subject.name, value: subject.id }))}
+              />
+            </div>
+            <div>
+              <Label>Type</Label>
+              <Select
+                value={draft.type}
+                onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value }))}
+                options={QUESTION_TYPES.map((type) => ({ label: type, value: type }))}
+              />
+            </div>
+            <div>
+              <Label>Topic</Label>
+              <Input
+                value={draft.topic}
+                onChange={(event) => setDraft((current) => ({ ...current, topic: event.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Subtopic</Label>
+              <Input
+                value={draft.subtopic}
+                onChange={(event) => setDraft((current) => ({ ...current, subtopic: event.target.value }))}
+              />
+            </div>
+            <div className="xl:col-span-2">
+              <Label>Question Text</Label>
+              <Textarea
+                value={draft.question_text}
+                onChange={(event) => setDraft((current) => ({ ...current, question_text: event.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Answer</Label>
+              <Textarea
+                value={draft.answer}
+                onChange={(event) => setDraft((current) => ({ ...current, answer: event.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Explanation</Label>
+              <Textarea
+                value={draft.explanation}
+                onChange={(event) => setDraft((current) => ({ ...current, explanation: event.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Difficulty</Label>
+              <Input
+                type="number"
+                min={1}
+                max={5}
+                value={draft.difficulty}
+                onChange={(event) => setDraft((current) => ({ ...current, difficulty: Number(event.target.value) }))}
+              />
+            </div>
+            <div className="xl:col-span-3">
+              <Label>Choices (MC only)</Label>
+              <Textarea
+                value={draft.choices_text}
+                onChange={(event) => setDraft((current) => ({ ...current, choices_text: event.target.value }))}
+                placeholder={"Choice A|false\nChoice B|true"}
+              />
+            </div>
+            <div className="xl:col-span-4 flex flex-wrap gap-3">
+              <Button type="button" onClick={createQuestion}>
+                Add Question
+              </Button>
+            </div>
+          </CardContent>
+        ) : null}
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Question Bank</CardTitle>
-          <CardDescription>Filter, search, edit inline, inspect choices, and delete from the bank.</CardDescription>
+          <CardDescription>
+            Filter the bank, then click any row to inspect topic, subtopic, difficulty, answers, and choices.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
@@ -458,7 +456,12 @@ export function QuestionBankClient({
               onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
             />
           </div>
-          <DataTable columns={columns} data={filteredQuestions} emptyMessage="No questions in bank yet." />
+          <DataTable
+            columns={columns}
+            data={filteredQuestions}
+            emptyMessage="No questions in bank yet."
+            renderExpandedRow={renderExpandedRow}
+          />
         </CardContent>
       </Card>
     </div>
