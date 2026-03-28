@@ -94,6 +94,12 @@ export async function runExtractionWorkflow(input: {
           : null,
     };
   } catch (error) {
+    console.error("Extraction workflow failed.", {
+      sourceFileId: input.sourceFileId,
+      fileType: input.fileType,
+      message: error instanceof Error ? error.message : error,
+    });
+
     await supabase
       .from("source_files")
       .update({ processing_status: "failed" })

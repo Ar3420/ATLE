@@ -38,6 +38,18 @@ type QueueItem = {
   reviewUrl?: string;
 };
 
+function toUserFacingExtractionError(message: string) {
+  if (
+    message.includes("not valid JSON") ||
+    message.includes("Unexpected token") ||
+    message.includes("OpenAI did not return valid structured question extraction output")
+  ) {
+    return "Extraction failed because the AI response was not valid structured data for this file.";
+  }
+
+  return message;
+}
+
 function toPersistedItem(item: QueueItem): PersistedQueueItem {
   return {
     id: item.id,
@@ -273,7 +285,10 @@ export function UploadClient({
         failedCount += 1;
         updateQueueItem(item.id, {
           status: "error",
-          message: error instanceof Error ? error.message : "Upload failed.",
+          message:
+            error instanceof Error
+              ? toUserFacingExtractionError(error.message)
+              : "Upload failed.",
         });
       }
     }

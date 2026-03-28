@@ -1,7 +1,35 @@
 import OpenAI from "openai";
+import { zodResponseFormat, zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
 
+import { QUESTION_TYPES } from "@/lib/constants";
 import { env } from "@/lib/env";
 import { clusterItemSchema } from "@/lib/validation";
+
+const extractedChoiceOutputSchema = z.object({
+  text: z.string(),
+  is_correct: z.boolean(),
+});
+
+const extractedQuestionOutputSchema = z.object({
+  question_text: z.string(),
+  type: z.enum(QUESTION_TYPES),
+  topic: z.string().optional().default("General"),
+  subtopic: z.string().optional().default("Core Concepts"),
+  difficulty: z.number().int().min(1).max(5),
+  answer: z.string().optional().default(""),
+  explanation: z.string().nullable().optional().default(null),
+  uncertain: z.boolean().optional().default(false),
+  choices: z.array(extractedChoiceOutputSchema).optional().default([]),
+});
+
+const extractedQuestionResponseSchema = z.object({
+  questions: z.array(extractedQuestionOutputSchema).default([]),
+});
+
+const clusterResponseSchema = z.object({
+  clusters: z.array(clusterItemSchema).default([]),
+});
 
 function extractJsonPayload(rawText: string) {
   const trimmed = rawText.trim();
@@ -63,6 +91,27 @@ function normalizeExtractedQuestions(questions: unknown) {
   });
 }
 
+function summarizeOutputText(rawText: string) {
+  return rawText.replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+function toStructuredOutputError(error: unknown, task: string) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (
+    message.includes("No object generated") ||
+    message.includes("not valid JSON") ||
+    message.includes("Unexpected token") ||
+    message.includes("JSON.parse")
+  ) {
+    return new Error(
+      `OpenAI did not return valid structured ${task} output for this file.`,
+    );
+  }
+
+  return error instanceof Error ? error : new Error(`OpenAI ${task} failed.`);
+}
+
 function getClient() {
   if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured.");
@@ -71,21 +120,6 @@ function getClient() {
   return new OpenAI({
     apiKey: env.OPENAI_API_KEY,
   });
-}
-
-async function createJsonResponse(input: OpenAI.Chat.ChatCompletionCreateParams) {
-  const client = getClient();
-  const response = await client.chat.completions.create({
-    ...input,
-    stream: false,
-  });
-  const content = response.choices[0]?.message?.content;
-
-  if (!content) {
-    throw new Error("OpenAI returned an empty response.");
-  }
-
-  return content;
 }
 
 async function createPdfJsonResponse(input: {
@@ -126,6 +160,131 @@ async function createPdfJsonResponse(input: {
   return outputText;
 }
 
+async function createStructuredPdfExtraction(input: {
+  pdfBase64: string;
+  pdfFilename: string;
+  instructions: string;
+}) {
+  const client = getClient();
+
+  try {
+    const response = await client.responses.parse({
+      model: "gpt-4o",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: input.instructions,
+            },
+            {
+              type: "input_file",
+              filename: input.pdfFilename,
+              file_data: `data:application/pdf;base64,${input.pdfBase64}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: zodTextFormat(extractedQuestionResponseSchema, "extracted_questions"),
+      },
+    });
+
+    if (!response.output_parsed) {
+      throw new Error("OpenAI returned no structured PDF extraction content.");
+    }
+
+    return response.output_parsed;
+  } catch (error) {
+    let fallbackRawText = "";
+
+    try {
+      fallbackRawText = await createPdfJsonResponse(input);
+      return extractedQuestionResponseSchema.parse(JSON.parse(extractJsonPayload(fallbackRawText)));
+    } catch (fallbackError) {
+      console.error("PDF extraction failed after structured-output fallback.", {
+        primaryError: error instanceof Error ? error.message : error,
+        fallbackError: fallbackError instanceof Error ? fallbackError.message : fallbackError,
+        responsePreview: fallbackRawText ? summarizeOutputText(fallbackRawText) : null,
+      });
+      throw toStructuredOutputError(fallbackError, "question extraction");
+    }
+  }
+}
+
+async function createStructuredChatJsonResponse(input: {
+  content: OpenAI.Chat.ChatCompletionContentPart[];
+}) {
+  const client = getClient();
+
+  try {
+    const response = await client.beta.chat.completions.parse({
+      model: "gpt-4o",
+      temperature: 0,
+      messages: [{ role: "user", content: input.content }],
+      response_format: zodResponseFormat(
+        extractedQuestionResponseSchema,
+        "extracted_questions",
+      ),
+    });
+
+    const parsed = response.choices[0]?.message?.parsed;
+
+    if (!parsed) {
+      throw new Error("OpenAI returned no structured extraction content.");
+    }
+
+    return parsed;
+  } catch (error) {
+    throw toStructuredOutputError(error, "question extraction");
+  }
+}
+
+async function createStructuredClusterResponse(input: {
+  items: Array<{
+    topic: string;
+    subtopic: string;
+    error_type: string | null;
+  }>;
+}) {
+  const client = getClient();
+
+  try {
+    const response = await client.beta.chat.completions.parse({
+      model: "gpt-4o",
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text:
+                'Given this list of wrong answers with their topics, subtopics, and error types, identify the top recurring weakness clusters. Group related errors into named clusters. Return strict JSON in the shape {"clusters":[{ "cluster_name": string, "topic": string, "subtopic": string, "error_count": number }]}. No other text.',
+            },
+            {
+              type: "text",
+              text: JSON.stringify(input.items),
+            },
+          ],
+        },
+      ],
+      response_format: zodResponseFormat(clusterResponseSchema, "weakness_clusters"),
+    });
+
+    const parsed = response.choices[0]?.message?.parsed;
+
+    if (!parsed) {
+      throw new Error("OpenAI returned no structured cluster content.");
+    }
+
+    return parsed;
+  } catch (error) {
+    throw toStructuredOutputError(error, "weakness clustering");
+  }
+}
+
 export async function extractQuestionsWithOpenAI(input: {
   documentText?: string;
   imageBase64?: string;
@@ -138,13 +297,11 @@ export async function extractQuestionsWithOpenAI(input: {
     'You are extracting exam questions from an academic document. Extract every question. For each return: question_text, type: multiple_choice or long_response, choices (array of { text, is_correct }) if MC, answer (text), topic (infer from content), subtopic (infer from content), difficulty (1-5, estimate based on complexity), explanation (optional, brief), uncertain (boolean). Return strict JSON in the shape {"questions":[...]}. No markdown or extra text.';
 
   if (input.pdfBase64) {
-    const rawText = await createPdfJsonResponse({
+    const parsed = await createStructuredPdfExtraction({
       pdfBase64: input.pdfBase64,
       pdfFilename: input.pdfFilename ?? "source-document.pdf",
       instructions: `${instructions} Label: ${input.label}.`,
     });
-
-    const parsed = JSON.parse(extractJsonPayload(rawText)) as { questions?: unknown };
     return normalizeExtractedQuestions(parsed.questions);
   }
 
@@ -169,14 +326,7 @@ export async function extractQuestionsWithOpenAI(input: {
     });
   }
 
-  const rawText = await createJsonResponse({
-    model: "gpt-4o",
-    temperature: 0,
-    response_format: { type: "json_object" },
-    messages: [{ role: "user", content }],
-  });
-
-  const parsed = JSON.parse(extractJsonPayload(rawText)) as { questions?: unknown };
+  const parsed = await createStructuredChatJsonResponse({ content });
   return normalizeExtractedQuestions(parsed.questions);
 }
 
@@ -187,28 +337,6 @@ export async function clusterWeaknessesWithOpenAI(
     error_type: string | null;
   }>,
 ) {
-  const rawText = await createJsonResponse({
-    model: "gpt-4o",
-    temperature: 0,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text:
-              'Given this list of wrong answers with their topics, subtopics, and error types, identify the top recurring weakness clusters. Group related errors into named clusters. Return strict JSON in the shape {"clusters":[{ "cluster_name": string, "topic": string, "subtopic": string, "error_count": number }]}. No other text.',
-          },
-          {
-            type: "text",
-            text: JSON.stringify(items),
-          },
-        ],
-      },
-    ],
-  });
-
-  const parsed = JSON.parse(extractJsonPayload(rawText)) as { clusters?: unknown };
+  const parsed = await createStructuredClusterResponse({ items });
   return clusterItemSchema.array().parse(parsed.clusters ?? []);
 }
