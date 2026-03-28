@@ -15,6 +15,11 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "ALTE",
   description: "Adaptive Learning & Test Engine",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({
