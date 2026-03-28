@@ -6,6 +6,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadSchema } from "@/lib/validation";
 import { runExtractionWorkflow } from "@/lib/workflows/extraction";
 
+export const maxDuration = 60;
+
 function inferFileType(file: File): "pdf" | "image" | "text" {
   if (file.type.includes("pdf")) return "pdf";
   if (file.type.startsWith("image/")) return "image";
