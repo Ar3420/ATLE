@@ -7,6 +7,18 @@ import { getSubjects, getTestDetail } from "@/lib/server-data";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function toDownloadFilename(value: string) {
+  const ascii = value
+    .normalize("NFKD")
+    .replace(/[^\x00-\x7F]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+
+  return ascii || "test";
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { testId: string } },
@@ -47,7 +59,7 @@ export async function GET(
     return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${test.title.replace(/\s+/g, "-").toLowerCase()}-${pdfVersion}.pdf"`,
+        "Content-Disposition": `attachment; filename="${toDownloadFilename(test.title)}-${pdfVersion}.pdf"`,
       },
     });
   } catch (error) {
