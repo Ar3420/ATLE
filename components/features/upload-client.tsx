@@ -1,10 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import {
+  loadPersistedQueue,
+  loadPersistedSettings,
+  savePersistedQueue,
+  savePersistedSettings,
+  type PersistedQueueItem,
+} from "@/lib/client/upload-queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -31,6 +38,38 @@ type QueueItem = {
   reviewUrl?: string;
 };
 
+function toPersistedItem(item: QueueItem): PersistedQueueItem {
+  return {
+    id: item.id,
+    name: item.file.name,
+    type: item.file.type,
+    size: item.file.size,
+    lastModified: item.file.lastModified,
+    status: item.status,
+    message: item.message,
+    reviewUrl: item.reviewUrl,
+    file: item.file,
+  };
+}
+
+function fromPersistedItem(item: PersistedQueueItem): QueueItem {
+  const file =
+    item.file instanceof File
+      ? item.file
+      : new File([item.file], item.name, {
+          type: item.type,
+          lastModified: item.lastModified,
+        });
+
+  return {
+    id: item.id,
+    file,
+    status: item.status,
+    message: item.message,
+    reviewUrl: item.reviewUrl,
+  };
+}
+
 export function UploadClient({
   subjects,
   sourceFiles,
@@ -42,10 +81,66 @@ export function UploadClient({
   const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? "");
   const [label, setLabel] = useState<(typeof SOURCE_FILE_LABELS)[number]>("test");
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [recentFiles, setRecentFiles] = useState(sourceFiles);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasLoadedPersistence = useRef(false);
   const subjectMap = new Map(subjects.map((subject) => [subject.id, subject.name]));
+
+  useEffect(() => {
+    setRecentFiles(sourceFiles);
+  }, [sourceFiles]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreQueueState() {
+      try {
+        const [persistedQueue, persistedSettings] = await Promise.all([
+          loadPersistedQueue(),
+          Promise.resolve(loadPersistedSettings()),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setQueue(persistedQueue.map(fromPersistedItem));
+
+        if (persistedSettings?.subjectId) {
+          setSubjectId(persistedSettings.subjectId);
+        }
+
+        if (
+          persistedSettings?.label &&
+          SOURCE_FILE_LABELS.includes(persistedSettings.label as (typeof SOURCE_FILE_LABELS)[number])
+        ) {
+          setLabel(persistedSettings.label as (typeof SOURCE_FILE_LABELS)[number]);
+        }
+      } catch (error) {
+        console.error("Unable to restore upload queue", error);
+      } finally {
+        hasLoadedPersistence.current = true;
+      }
+    }
+
+    void restoreQueueState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedPersistence.current) {
+      return;
+    }
+
+    void savePersistedQueue(queue.map(toPersistedItem));
+    savePersistedSettings({ subjectId, label });
+  }, [queue, subjectId, label]);
 
   function mergeFiles(incomingFiles: File[]) {
     setQueue((current) => {
@@ -110,7 +205,9 @@ export function UploadClient({
       throw new Error(data.error ?? "Upload failed.");
     }
 
-    const upload: UploadResult | undefined = Array.isArray(data.uploads) ? data.uploads[0] : undefined;
+    const upload: UploadResult | undefined = Array.isArray(data.uploads)
+      ? data.uploads[0]
+      : undefined;
 
     if (!upload) {
       throw new Error("Upload finished without a result payload.");
@@ -189,6 +286,26 @@ export function UploadClient({
     }
   }
 
+  async function deleteRecentFile(sourceFileId: string) {
+    setDeletingFileId(sourceFileId);
+
+    const response = await fetch(`/api/source-files/${sourceFileId}`, {
+      method: "DELETE",
+    });
+    const data = await response.json();
+
+    setDeletingFileId(null);
+
+    if (!response.ok) {
+      toast.error(data.error ?? "Failed to delete file.");
+      return;
+    }
+
+    setRecentFiles((current) => current.filter((file) => file.id !== sourceFileId));
+    toast.success("File deleted.");
+    router.refresh();
+  }
+
   const queuedCount = queue.length;
 
   return (
@@ -238,7 +355,7 @@ export function UploadClient({
             <p className="mt-2 text-sm text-[#9f947c]">
               {isDragging
                 ? "Drop files to add them to the extraction queue."
-                : "Supported: PDF, image, plain text. Files are processed one by one."}
+                : "Supported: PDF, image, plain text. Queue state persists across reloads."}
             </p>
             {queuedCount ? (
               <p className="mt-4 text-xs uppercase tracking-[0.24em] text-[#b9892f]">
@@ -355,8 +472,8 @@ export function UploadClient({
           <CardDescription>Processing state for uploaded materials in {STORAGE_BUCKET}.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {sourceFiles.length ? (
-            sourceFiles.map((sourceFile) => (
+          {recentFiles.length ? (
+            recentFiles.map((sourceFile) => (
               <div
                 key={sourceFile.id}
                 className="rounded-2xl border border-[#e4d7ba] bg-[#fffaf1] px-4 py-3"
@@ -378,6 +495,15 @@ export function UploadClient({
                     >
                       Review
                     </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      disabled={deletingFileId === sourceFile.id}
+                      onClick={() => deleteRecentFile(sourceFile.id)}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
               </div>
