@@ -47,7 +47,14 @@ export function TestsClient({ tests }: { tests: TestRow[] }) {
               href={`/api/tests/${row.original.id}/pdf?version=student`}
               target="_blank"
             >
-              PDF
+              Student PDF
+            </Link>
+            <Link
+              className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}
+              href={`/api/tests/${row.original.id}/pdf?version=key`}
+              target="_blank"
+            >
+              Answer Key
             </Link>
             <Link
               className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}

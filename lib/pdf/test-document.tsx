@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Text,
   View,
-  renderToStream,
+  renderToBuffer,
 } from "@react-pdf/renderer";
 
 type PdfQuestion = {
@@ -149,12 +149,12 @@ function TestDocument({
   );
 }
 
-export async function buildTestPdfStream(input: {
+export async function buildTestPdfBuffer(input: {
   title: string;
   createdAt: string;
   subjects: string[];
   version: "student" | "key";
   questions: PdfQuestion[];
 }) {
-  return renderToStream(<TestDocument {...input} />);
+  return renderToBuffer(<TestDocument {...input} />);
 }
