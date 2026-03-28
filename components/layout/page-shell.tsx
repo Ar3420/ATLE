@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 export function PageShell({
@@ -15,7 +16,16 @@ export function PageShell({
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.28em] text-[#c39534]">ALTE</p>
+          <div className="flex items-center gap-2">
+            <Image
+              src="/alte-logo.png"
+              alt="ALTE logo"
+              width={22}
+              height={22}
+              className="h-5 w-5 object-contain"
+            />
+            <p className="text-xs uppercase tracking-[0.28em] text-[#c39534]">ALTE</p>
+          </div>
           <h1 className="text-3xl font-semibold tracking-tight text-[#3f4a61]">
             {title}
           </h1>
