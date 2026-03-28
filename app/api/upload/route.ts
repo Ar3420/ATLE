@@ -15,10 +15,19 @@ function inferFileType(file: File): "pdf" | "image" | "text" {
 export async function POST(request: Request) {
   const user = await requireUser();
   const formData = await request.formData();
-  const file = formData.get("file");
+  const files = formData
+    .getAll("files")
+    .filter((item): item is File => item instanceof File && item.size > 0);
+  const legacyFile = formData.get("file");
+  const uploadFiles =
+    files.length > 0
+      ? files
+      : legacyFile instanceof File
+        ? [legacyFile]
+        : [];
 
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "File is required." }, { status: 400 });
+  if (!uploadFiles.length) {
+    return NextResponse.json({ error: "At least one file is required." }, { status: 400 });
   }
 
   const parsed = uploadSchema.parse({
@@ -27,51 +36,85 @@ export async function POST(request: Request) {
   });
 
   const supabase = createServerSupabaseClient();
-  const sourceFileId = crypto.randomUUID();
-  const filePath = `${user.id}/${sourceFileId}-${file.name.replace(/\s+/g, "-")}`;
-  const fileType = inferFileType(file);
+  const uploads = [];
 
-  const { error: uploadError } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .upload(filePath, file, {
-      upsert: false,
-      contentType: file.type,
-    });
+  for (const file of uploadFiles) {
+    const sourceFileId = crypto.randomUUID();
+    const filePath = `${user.id}/${sourceFileId}-${file.name.replace(/\s+/g, "-")}`;
+    const fileType = inferFileType(file);
 
-  if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 400 });
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(filePath, file, {
+          upsert: false,
+          contentType: file.type,
+        });
+
+      if (uploadError) {
+        uploads.push({
+          file_name: file.name,
+          error: uploadError.message,
+        });
+        continue;
+      }
+
+      const { data: sourceFile, error: sourceFileError } = await supabase
+        .from("source_files")
+        .insert({
+          id: sourceFileId,
+          user_id: user.id,
+          subject_id: parsed.subject_id,
+          file_path: filePath,
+          file_type: fileType,
+          label: parsed.label,
+          processing_status: "pending",
+        })
+        .select("*")
+        .single();
+
+      if (sourceFileError || !sourceFile) {
+        uploads.push({
+          file_name: file.name,
+          error: sourceFileError?.message ?? "Unable to create source file record.",
+        });
+        continue;
+      }
+
+      const extraction = await runExtractionWorkflow({
+        userId: user.id,
+        sourceFileId,
+        filePath,
+        label: parsed.label,
+        subjectId: parsed.subject_id,
+        fileType,
+      });
+
+      uploads.push({
+        file_name: file.name,
+        source_file: sourceFile,
+        extraction,
+        review_url: `/questions/review/${sourceFileId}`,
+        error: null,
+      });
+    } catch (error) {
+      uploads.push({
+        file_name: file.name,
+        error: error instanceof Error ? error.message : "Upload failed.",
+      });
+    }
   }
 
-  const { data: sourceFile, error: sourceFileError } = await supabase
-    .from("source_files")
-    .insert({
-      id: sourceFileId,
-      user_id: user.id,
-      subject_id: parsed.subject_id,
-      file_path: filePath,
-      file_type: fileType,
-      label: parsed.label,
-      processing_status: "pending",
-    })
-    .select("*")
-    .single();
-
-  if (sourceFileError) {
-    return NextResponse.json({ error: sourceFileError.message }, { status: 400 });
-  }
-
-  const extraction = await runExtractionWorkflow({
-    userId: user.id,
-    sourceFileId,
-    filePath,
-    label: parsed.label,
-    subjectId: parsed.subject_id,
-    fileType,
-  });
+  const successfulUploads = uploads.filter((item) => item.source_file);
+  const failedUploads = uploads.filter((item) => item.error && !item.source_file);
+  const firstReviewUrl = successfulUploads[0]?.review_url ?? null;
 
   return NextResponse.json({
-    source_file: sourceFile,
-    extraction,
-    review_url: `/questions/review/${sourceFileId}`,
+    uploads,
+    review_url: firstReviewUrl,
+    uploaded_count: successfulUploads.length,
+    failed_count: failedUploads.length,
+  }, {
+    status: failedUploads.length > 0 ? 207 : 200,
   });
 }

@@ -25,6 +25,7 @@ const iconMap = {
 
 type SubjectCard = TableRow<"subjects"> & {
   questionCount: number;
+  fileCount: number;
   averageScore: number;
 };
 
@@ -49,7 +50,7 @@ export function SubjectsClient({ initialSubjects }: { initialSubjects: SubjectCa
       return;
     }
 
-    setSubjects((current) => [{ ...data.subject, questionCount: 0, averageScore: 0 }, ...current]);
+    setSubjects((current) => [{ ...data.subject, questionCount: 0, fileCount: 0, averageScore: 0 }, ...current]);
     setForm({ name: "", color: "#22c55e", icon: "BookOpen" });
     toast.success("Subject created.");
   }
@@ -139,7 +140,7 @@ export function SubjectsClient({ initialSubjects }: { initialSubjects: SubjectCa
                     </div>
                     <div>
                       <CardTitle>{subject.name}</CardTitle>
-                      <CardDescription>{subject.questionCount} questions</CardDescription>
+                      <CardDescription>{subject.questionCount} questions • {subject.fileCount} files</CardDescription>
                     </div>
                   </div>
                   <button onClick={() => deleteSubject(subject.id)} className="text-[#9f947c] transition hover:text-red-500">

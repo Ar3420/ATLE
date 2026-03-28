@@ -18,14 +18,17 @@ export async function getSubjects(userId: string) {
   return data ?? [];
 }
 
-export async function getSourceFiles(userId: string) {
+export async function getSourceFiles(userId: string, filters?: { subjectId?: string }) {
   const supabase = createServerSupabaseClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("source_files")
     .select("*")
     .eq("user_id", userId)
     .order("uploaded_at", { ascending: false });
 
+  if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
+
+  const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
 }
@@ -241,7 +244,10 @@ export async function getSubjectDetail(userId: string, subjectId: string) {
     throw new Error("Subject not found");
   }
 
-  const questions = await getQuestions(userId, { subjectId });
+  const [questions, sourceFiles] = await Promise.all([
+    getQuestions(userId, { subjectId }),
+    getSourceFiles(userId, { subjectId }),
+  ]);
   const supabase = createServerSupabaseClient();
   const { data: results } = await supabase
     .from("attempt_question_results")
@@ -256,8 +262,10 @@ export async function getSubjectDetail(userId: string, subjectId: string) {
   return {
     subject,
     questions,
+    sourceFiles,
     stats: {
       questionCount: questions.length,
+      sourceFileCount: sourceFiles.length,
       accuracy,
     },
   };
