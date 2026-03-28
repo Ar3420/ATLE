@@ -175,6 +175,16 @@ export function UploadClient({
     );
   }
 
+  function upsertRecentFile(sourceFile: TableRow<"source_files">) {
+    setRecentFiles((current) => {
+      const nextFiles = [sourceFile, ...current.filter((item) => item.id !== sourceFile.id)];
+      return nextFiles.sort(
+        (left, right) =>
+          new Date(right.uploaded_at).getTime() - new Date(left.uploaded_at).getTime(),
+      );
+    });
+  }
+
   function handleDrop(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
     setIsDragging(false);
@@ -255,6 +265,10 @@ export function UploadClient({
         if (!firstReviewUrl && upload.review_url) {
           firstReviewUrl = upload.review_url;
         }
+        if (upload.source_file) {
+          upsertRecentFile(upload.source_file);
+        }
+        removeQueuedFile(item.id);
       } catch (error) {
         failedCount += 1;
         updateQueueItem(item.id, {

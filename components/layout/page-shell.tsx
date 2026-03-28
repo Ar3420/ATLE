@@ -15,14 +15,12 @@ export function PageShell({
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.28em] text-[#c39534]">
-            Adaptive Learning & Test Engine
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[#55627e]">
+          <p className="text-xs uppercase tracking-[0.28em] text-[#c39534]">ALTE</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-[#3f4a61]">
             {title}
           </h1>
           {description ? (
-            <p className="max-w-3xl text-sm leading-6 text-[#847962]">
+            <p className="max-w-3xl text-sm leading-6 text-[#7d7567]">
               {description}
             </p>
           ) : null}

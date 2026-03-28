@@ -92,9 +92,16 @@ export async function POST(request: Request) {
         fileType,
       });
 
+      const { data: finalSourceFile, error: finalSourceFileError } = await supabase
+        .from("source_files")
+        .select("*")
+        .eq("id", sourceFileId)
+        .eq("user_id", user.id)
+        .single();
+
       uploads.push({
         file_name: file.name,
-        source_file: sourceFile,
+        source_file: finalSourceFileError ? sourceFile : finalSourceFile,
         extraction,
         review_url: `/questions/review/${sourceFileId}`,
         error: null,

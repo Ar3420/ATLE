@@ -38,16 +38,16 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-[#e4d7ba]">
+      <div className="overflow-hidden rounded-2xl border border-[#e5dcc8] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.04)]">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[#e8dcc0]">
-            <thead className="bg-[#fff6e3]">
+          <table className="min-w-full divide-y divide-[#ebe3d0]">
+            <thead className="bg-white">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-[#a18953]"
+                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.2em] text-[#b08426]"
                     >
                       {header.isPlaceholder
                         ? null
@@ -60,7 +60,7 @@ export function DataTable<TData, TValue>({
                 </tr>
               ))}
             </thead>
-            <tbody className="divide-y divide-[#efe5d1] bg-[#fffdf8]">
+            <tbody className="divide-y divide-[#f0e8d8] bg-white">
               {table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
                   <tr key={row.id} className="align-top">

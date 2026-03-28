@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
-  BookOpen,
   CircleHelp,
   FileUp,
   Gauge,
@@ -28,32 +27,21 @@ const icons = {
   "/analytics": BarChart3,
 } as const;
 
-export function Sidebar({ email }: { email?: string }) {
+export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-full border-b border-[#e4d7ba] bg-[#fffaf1]/90 backdrop-blur md:min-h-screen md:w-72 md:border-b-0 md:border-r">
-      <div className="flex items-center justify-between gap-4 p-6 md:block">
-        <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#ecd69b] bg-[#fff3d2] px-3 py-1 text-xs uppercase tracking-[0.25em] text-[#b9892f]">
-            <BookOpen className="h-3.5 w-3.5" />
-            ALTE
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[#55627e]">
-              Adaptive Learning Engine
-            </h1>
-            <p className="mt-1 text-sm text-[#8d8067]">{email ?? "Signed in"}</p>
-          </div>
-        </div>
-        <form action="/auth/signout" method="post" className="hidden md:block">
-          <Button variant="secondary" size="sm">
-            Sign out
-          </Button>
-        </form>
+    <aside className="w-full border-b border-[#e5dcc8] bg-white md:min-h-screen md:w-64 md:border-b-0 md:border-r">
+      <div className="border-b border-[#f0e8d8] px-6 py-6">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center rounded-full border border-[#e2cf9f] px-4 py-2 text-sm font-semibold uppercase tracking-[0.32em] text-[#b08426] transition hover:border-[#d4b36c] hover:text-[#8c6f36]"
+        >
+          ALTE
+        </Link>
       </div>
 
-      <nav className="grid grid-cols-2 gap-2 px-4 pb-4 md:grid-cols-1 md:px-6 md:pb-6">
+      <nav className="grid grid-cols-2 gap-2 px-4 py-4 md:grid-cols-1 md:px-5">
         {appNavigation.map((item) => {
           const Icon = icons[item.href as keyof typeof icons] ?? NotebookPen;
           const isActive = pathname === item.href;
@@ -63,10 +51,10 @@ export function Sidebar({ email }: { email?: string }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm transition",
+                "relative flex items-center gap-3 overflow-hidden rounded-xl border border-transparent bg-white px-4 py-3 text-sm font-medium text-[#5f677a] transition-[color,border-color,background-color,transform] duration-200 after:absolute after:bottom-0 after:left-4 after:right-4 after:h-[2px] after:origin-left after:scale-x-0 after:bg-[#d4b36c] after:transition-transform after:duration-200 hover:text-[#5a4720] hover:after:scale-x-100 active:scale-[0.98] active:bg-[#d4b36c] active:text-white",
                 isActive
-                  ? "border-[#e4bd62] bg-[#fff1cb] text-[#9d7428]"
-                  : "border-[#eee1c5] bg-[#fffdf8] text-[#847962] hover:border-[#e4d7ba] hover:bg-[#fbf1de] hover:text-[#5a4720]",
+                  ? "border-[#e5dcc8] text-[#8c6f36] after:scale-x-100"
+                  : "hover:border-[#efe5d1]",
               )}
             >
               <Icon className="h-4 w-4" />
@@ -75,6 +63,14 @@ export function Sidebar({ email }: { email?: string }) {
           );
         })}
       </nav>
+
+      <div className="px-5 pb-5">
+        <form action="/auth/signout" method="post">
+          <Button variant="secondary" className="w-full">
+            Sign out
+          </Button>
+        </form>
+      </div>
     </aside>
   );
 }
