@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -36,22 +35,11 @@ export function Sidebar() {
       <div className="border-b border-[#f0e8d8] px-6 py-6">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-3 rounded-2xl border border-[#e2cf9f] px-3 py-3 text-left transition hover:border-[#d4b36c] hover:bg-[#fffaf0]"
+          className="inline-flex items-center rounded-2xl border border-[#e2cf9f] px-4 py-3 text-left transition hover:border-[#d4b36c] hover:bg-[#fffaf0]"
         >
-          <Image
-            src="/alte-logo.png"
-            alt="ALTE logo"
-            width={44}
-            height={44}
-            className="h-11 w-11 rounded-xl object-contain"
-            priority
-          />
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#b08426]">
-              ALTE
-            </p>
-            <p className="text-xs text-[#8f846f]">Adaptive Learning Engine</p>
-          </div>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#b08426]">
+            ALTE
+          </p>
         </Link>
       </div>
 
