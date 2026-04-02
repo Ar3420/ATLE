@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 
 import { DataTable } from "@/components/tables/data-table";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type TestRow = {
@@ -18,6 +20,33 @@ type TestRow = {
 };
 
 export function TestsClient({ tests }: { tests: TestRow[] }) {
+  const router = useRouter();
+  const [deletingTestId, setDeletingTestId] = useState<string | null>(null);
+
+  const deleteTest = useCallback(async (testId: string, title: string) => {
+    const confirmed = window.confirm(`Delete "${title}"? This also removes linked attempts.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingTestId(testId);
+
+    const response = await fetch(`/api/tests/${testId}`, {
+      method: "DELETE",
+    });
+    const data = await response.json();
+
+    setDeletingTestId(null);
+
+    if (!response.ok) {
+      toast.error(data.error ?? "Failed to delete test.");
+      return;
+    }
+
+    toast.success("Test deleted.");
+    router.refresh();
+  }, [router]);
+
   const columns = useMemo<ColumnDef<TestRow>[]>(
     () => [
       { accessorKey: "title", header: "Title" },
@@ -62,11 +91,20 @@ export function TestsClient({ tests }: { tests: TestRow[] }) {
             >
               Log Attempt
             </Link>
+            <Button
+              variant="danger"
+              size="sm"
+              type="button"
+              disabled={deletingTestId === row.original.id}
+              onClick={() => deleteTest(row.original.id, row.original.title)}
+            >
+              {deletingTestId === row.original.id ? "Deleting..." : "Delete"}
+            </Button>
           </div>
         ),
       },
     ],
-    [],
+    [deleteTest, deletingTestId],
   );
 
   return <DataTable columns={columns} data={tests} emptyMessage="No generated tests yet." />;

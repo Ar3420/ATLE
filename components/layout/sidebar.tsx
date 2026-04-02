@@ -31,7 +31,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-full border-b border-[#e5dcc8] bg-white md:min-h-screen md:w-64 md:border-b-0 md:border-r">
+    <aside className="w-full border-b border-[#e5dcc8] bg-white/95 backdrop-blur md:min-h-screen md:w-64 md:border-b-0 md:border-r md:shadow-[8px_0_24px_rgba(15,23,42,0.04)]">
       <div className="border-b border-[#f0e8d8] px-6 py-6">
         <Link
           href="/dashboard"

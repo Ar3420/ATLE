@@ -17,10 +17,16 @@ body {
     radial-gradient(circle at top left, rgba(228, 189, 98, 0.14), transparent 22%),
     linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
   color: #434c60;
+  scroll-behavior: smooth;
 }
 
 body {
   font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+::selection {
+  background: rgba(212, 179, 108, 0.28);
+  color: #3f4a61;
 }
 
 .bg-\[\#fffaf1\],

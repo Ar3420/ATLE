@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -82,6 +83,10 @@ function fromPersistedItem(item: PersistedQueueItem): QueueItem {
   };
 }
 
+function fileDisplayName(filePath: string) {
+  return filePath.split("/").pop() ?? filePath;
+}
+
 export function UploadClient({
   subjects,
   sourceFiles,
@@ -96,14 +101,21 @@ export function UploadClient({
   const [recentFiles, setRecentFiles] = useState(sourceFiles);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isQueueOpen, setIsQueueOpen] = useState(true);
+  const [isRecentFilesOpen, setIsRecentFilesOpen] = useState(false);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const hasLoadedPersistence = useRef(false);
-  const subjectMap = new Map(subjects.map((subject) => [subject.id, subject.name]));
 
   useEffect(() => {
     setRecentFiles(sourceFiles);
   }, [sourceFiles]);
+
+  useEffect(() => {
+    if (queue.length > 0 || isUploading) {
+      setIsQueueOpen(true);
+    }
+  }, [queue.length, isUploading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -339,7 +351,7 @@ export function UploadClient({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_0.95fr]">
-      <Card>
+      <Card className="transition-transform duration-200 hover:-translate-y-0.5">
         <CardHeader>
           <CardTitle>Upload Source Material</CardTitle>
           <CardDescription>
@@ -368,10 +380,10 @@ export function UploadClient({
               setIsDragging(false);
             }}
             onDrop={handleDrop}
-            className={`flex min-h-[220px] w-full flex-col items-center justify-center rounded-3xl border border-dashed p-8 text-center transition ${
+            className={`flex min-h-[220px] w-full flex-col items-center justify-center rounded-3xl border border-dashed p-8 text-center transition-all duration-200 ${
               isDragging
                 ? "border-[#d4b36c] bg-[#fff2cf] shadow-[0_0_0_3px_rgba(212,179,108,0.15)]"
-                : "border-[#dbcaa3] bg-[#fffaf1] hover:border-[#d4b36c] hover:bg-[#fff8ea]"
+                : "border-[#dbcaa3] bg-white hover:border-[#d4b36c] hover:bg-[#fff8ea] hover:shadow-[0_16px_32px_rgba(212,179,108,0.10)]"
             }`}
           >
             <p className="text-lg font-medium text-[#55627e]">
@@ -404,9 +416,23 @@ export function UploadClient({
           />
 
           {queue.length ? (
-            <div className="rounded-2xl border border-[#e4d7ba] bg-[#fffaf1] px-4 py-3">
+            <div className="rounded-2xl border border-[#e4d7ba] bg-white/90 px-4 py-3 shadow-[0_12px_28px_rgba(212,179,108,0.08)]">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-[#55627e]">Extraction Queue</p>
+                <button
+                  type="button"
+                  onClick={() => setIsQueueOpen((current) => !current)}
+                  className="flex items-center gap-2 text-left text-sm font-medium text-[#55627e]"
+                >
+                  {isQueueOpen ? (
+                    <ChevronDown className="h-4 w-4 text-[#b9892f]" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-[#b9892f]" />
+                  )}
+                  <span>Extraction Queue</span>
+                  <span className="rounded-full bg-[#f7f0e1] px-2 py-0.5 text-xs text-[#8c6f36]">
+                    {queue.length}
+                  </span>
+                </button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -417,48 +443,54 @@ export function UploadClient({
                   Clear Queue
                 </Button>
               </div>
-              <div className="mt-3 space-y-2 text-sm text-[#7f7560]">
-                {queue.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-xl border border-[#eadfca] bg-[#fffcf6] px-3 py-2"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-[#55627e]">{item.file.name}</p>
-                        <p className="text-xs text-[#9f947c]">
-                          {(item.file.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
+              {isQueueOpen ? (
+                <div className="mt-3 space-y-2 text-sm text-[#7f7560]">
+                  {queue.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-[#eadfca] bg-white px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-[#55627e]">{item.file.name}</p>
+                          <p className="text-xs text-[#9f947c]">
+                            {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs uppercase tracking-[0.14em] text-[#b9892f]">
+                            {item.status}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            type="button"
+                            disabled={isUploading && item.status === "processing"}
+                            onClick={() => removeQueuedFile(item.id)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs uppercase tracking-[0.14em] text-[#b9892f]">
-                          {item.status}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="button"
-                          disabled={isUploading && item.status === "processing"}
-                          onClick={() => removeQueuedFile(item.id)}
+                      {item.message ? (
+                        <p className="mt-2 text-xs text-[#7f7560]">{item.message}</p>
+                      ) : null}
+                      {item.reviewUrl ? (
+                        <Link
+                          href={item.reviewUrl}
+                          className="mt-2 inline-block text-xs font-medium text-[#8c6f36] transition hover:text-[#5a4720]"
                         >
-                          Remove
-                        </Button>
-                      </div>
+                          Open review
+                        </Link>
+                      ) : null}
                     </div>
-                    {item.message ? (
-                      <p className="mt-2 text-xs text-[#7f7560]">{item.message}</p>
-                    ) : null}
-                    {item.reviewUrl ? (
-                      <Link
-                        href={item.reviewUrl}
-                        className="mt-2 inline-block text-xs font-medium text-[#8c6f36] transition hover:text-[#5a4720]"
-                      >
-                        Open review
-                      </Link>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-[#9f947c]">
+                  Queue collapsed. Expand to see file status and actions.
+                </p>
+              )}
             </div>
           ) : null}
 
@@ -495,48 +527,88 @@ export function UploadClient({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="transition-transform duration-200 hover:-translate-y-0.5">
         <CardHeader>
           <CardTitle>Recent Files</CardTitle>
           <CardDescription>Processing state for uploaded materials in {STORAGE_BUCKET}.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {recentFiles.length ? (
-            recentFiles.map((sourceFile) => (
-              <div
-                key={sourceFile.id}
-                className="rounded-2xl border border-[#e4d7ba] bg-[#fffaf1] px-4 py-3"
+            <div className="rounded-2xl border border-[#e4d7ba] bg-white/90 px-4 py-3 shadow-[0_12px_28px_rgba(212,179,108,0.08)]">
+              <button
+                type="button"
+                onClick={() => setIsRecentFilesOpen((current) => !current)}
+                className="flex w-full items-center justify-between gap-3 text-left"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-[#55627e]">{sourceFile.file_path.split("/").pop()}</p>
-                    <p className="text-sm text-[#9f947c]">
-                      {subjectMap.get(sourceFile.subject_id) ?? "Unknown subject"} • {sourceFile.label} • {sourceFile.file_type}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm capitalize text-[#b9892f]">
-                      {sourceFile.processing_status.replace("_", " ")}
-                    </p>
-                    <Link
-                      href={`/questions/review/${sourceFile.id}`}
-                      className="text-sm font-medium text-[#8c6f36] transition hover:text-[#5a4720]"
-                    >
-                      Review
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      type="button"
-                      disabled={deletingFileId === sourceFile.id}
-                      onClick={() => deleteRecentFile(sourceFile.id)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
+                <div className="flex items-center gap-2 text-sm font-medium text-[#55627e]">
+                  {isRecentFilesOpen ? (
+                    <ChevronDown className="h-4 w-4 text-[#b9892f]" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-[#b9892f]" />
+                  )}
+                  <span>Recent Uploads</span>
+                  <span className="rounded-full bg-[#f7f0e1] px-2 py-0.5 text-xs text-[#8c6f36]">
+                    {recentFiles.length}
+                  </span>
                 </div>
-              </div>
-            ))
+                <p className="text-xs text-[#9f947c]">
+                  {isRecentFilesOpen ? "Click to collapse" : "Click to expand"}
+                </p>
+              </button>
+
+              {isRecentFilesOpen ? (
+                <div className="mt-3 space-y-2">
+                  {recentFiles.map((sourceFile) => (
+                    <div
+                      key={sourceFile.id}
+                      className="rounded-xl border border-[#eadfca] bg-white px-4 py-3 transition hover:border-[#d4b36c] hover:shadow-[0_12px_24px_rgba(212,179,108,0.12)]"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="min-w-0 truncate font-medium text-[#55627e]">
+                          {fileDisplayName(sourceFile.file_path)}
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <p className="text-sm capitalize text-[#b9892f]">
+                            {sourceFile.processing_status.replace("_", " ")}
+                          </p>
+                          <Link
+                            href={`/questions/review/${sourceFile.id}`}
+                            className="text-sm font-medium text-[#8c6f36] transition hover:text-[#5a4720]"
+                          >
+                            Review
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            type="button"
+                            disabled={deletingFileId === sourceFile.id}
+                            onClick={() => deleteRecentFile(sourceFile.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {recentFiles.slice(0, 3).map((sourceFile) => (
+                    <div
+                      key={sourceFile.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-[#eadfca] bg-white px-4 py-3"
+                    >
+                      <p className="truncate text-sm font-medium text-[#55627e]">
+                        {fileDisplayName(sourceFile.file_path)}
+                      </p>
+                      <p className="shrink-0 text-xs uppercase tracking-[0.14em] text-[#b9892f]">
+                        {sourceFile.processing_status.replace("_", " ")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <p className="text-sm text-[#9f947c]">No files uploaded yet.</p>
           )}
